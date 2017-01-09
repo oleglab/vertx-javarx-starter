@@ -1,12 +1,28 @@
-plugins {
-  id 'application'
-  id 'com.github.johnrengelman.shadow' version '1.2.3'
+buildscript {
+  repositories {
+    mavenCentral()
+    jcenter()
+  }
+  dependencies {
+    classpath 'se.transmode.gradle:gradle-docker:1.2'
+  }
 }
+
+plugins {
+  id 'java'
+  id 'application'
+  id 'com.github.johnrengelman.shadow' version '1.2.4'
+  id 'idea'
+}
+
+apply plugin: 'idea'
+apply plugin: 'docker'
 
 repositories {
   jcenter()
 }
 
+group = 'vertx-cluster'
 version = '1.0-SNAPSHOT'
 sourceCompatibility = '1.8'
 mainClassName = 'io.vertx.core.Launcher'
@@ -18,6 +34,18 @@ def doOnChange = './gradlew classes'
 
 dependencies {
   compile "io.vertx:vertx-core:$vertxVersion"
+  compile "io.vertx:vertx-rx-java:$vertxVersion"
+  compile "io.vertx:vertx-web:$vertxVersion"
+  compile "io.vertx:vertx-service-discovery:$vertxVersion"
+  compile "io.vertx:vertx-hazelcast:$vertxVersion"
+
+  compile 'ch.qos.logback:logback-core:1.1.8'
+  compile 'ch.qos.logback:logback-classic:1.1.8'
+  compile 'org.slf4j:slf4j-api:1.7.22'
+
+  //compile 'com.google.cloud:google-cloud:0.8.0'
+  //compile group: 'com.google.cloud', name: 'google-cloud-logging', version: '0.8.0-beta'
+
   testCompile "junit:junit:4.12"
   testCompile "io.vertx:vertx-unit:$vertxVersion"
 }
@@ -32,10 +60,38 @@ shadowJar {
   }
 }
 
+docker {
+  baseImage "vertx/vertx3-exec"
+  registry "gcr.io"
+}
+
 run {
   args = ['run', mainVerticleName, "--redeploy=$watchForChange", "--launcher-class=$mainClassName", "--on-redeploy=$doOnChange"]
 }
 
 task wrapper(type: Wrapper) {
   gradleVersion = '3.1'
+}
+
+task buildDocker(type: Docker) {
+
+  tagVersion = System.getenv("BUILD_NUMBER") ?: "latest"
+  push = Boolean.getBoolean("docker.push")
+  applicationName = project.applicationName
+
+  tag = "${project.docker.registry}/${project.group}/${applicationName}"
+
+  //install curl
+  runCommand "apk --no-cache add curl"
+  runCommand "apk update"
+  runCommand "rm -rf /var/cache/apk/*"
+
+  addFile {
+    from "${project.shadowJar.outputs.files.singleFile}"
+    into "/opt/vertx/"
+  }
+
+  exposePort 8080
+  entryPoint = ["sh",  "-c"]
+  defaultCommand = ["java -jar /opt/vertx/${project.name}-${project.version}-fat.jar -cluster"]
 }
