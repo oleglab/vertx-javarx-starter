@@ -62,7 +62,7 @@ shadowJar {
 
 docker {
   baseImage "vertx/vertx3-exec"
-  registry "gcr.io"
+  //registry "gcr.io"
 }
 
 run {
@@ -79,7 +79,8 @@ task buildDocker(type: Docker) {
   push = Boolean.getBoolean("docker.push")
   applicationName = project.applicationName
 
-  tag = "${project.docker.registry}/${project.group}/${applicationName}"
+  //tag = "${project.docker.registry}/${project.group}/${applicationName}"
+  tag = "${project.group}/${applicationName}"
 
   //install curl
   runCommand "apk --no-cache add curl"
